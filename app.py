@@ -3,19 +3,30 @@ from datetime import date
 
 st.set_page_config(page_title="日本トムソン様 使用量 可視化", layout="wide")
 
-# --- 診断パネル（サイドバー）---
+# --- 診断パネル（サイドバー）：importlib.metadata を使用 ---
 with st.sidebar:
     st.header("Diagnostics")
     try:
-        import pkg_resources
-        pkgs = sorted([(d.project_name, d.version) for d in pkg_resources.working_set])
-        st.caption("Top packages (excerpt)")
-        st.write([p for p in pkgs if p[0] in ["streamlit","pandas","SQLAlchemy","openpyxl","matplotlib"]])
+        try:
+            from importlib.metadata import version, PackageNotFoundError
+        except Exception:
+            from importlib_metadata import version, PackageNotFoundError  # backport があれば
+        def v(name):
+            try:
+                return version(name)
+            except PackageNotFoundError:
+                return "not-installed"
+        st.write({
+            "python": sys.version.split()[0],
+            "streamlit": v("streamlit"),
+            "pandas": v("pandas"),
+            "SQLAlchemy": v("SQLAlchemy"),
+            "openpyxl": v("openpyxl"),
+            "matplotlib": v("matplotlib"),
+        })
     except Exception as e:
-        st.write("pkg list error:", e)
-    st.write("Python:", sys.version.split()[0])
+        st.write("diagnostics error:", e)
 
-# --- 安全ガード用のラッパー ---
 def safe_run(fn):
     try:
         fn()
@@ -31,7 +42,6 @@ def main():
     st.title("日本トムソン様：地区別 30分毎使用量DB & 可視化")
     tabs = st.tabs(["DB作成/更新","可視化"])
 
-    # --- DB作成/更新 ---
     def tab_db():
         with tabs[0]:
             st.subheader("① Excelから初期化")
@@ -64,11 +74,9 @@ def main():
             st.subheader("DB一覧")
             st.write(get_sites_from_db_folder())
 
-    # --- 可視化 ---
     def tab_viz():
         with tabs[1]:
             st.subheader("30分毎の使用量グラフ")
-            from db_utils import get_sites_from_db_folder, query_usage_for_day
             sites=get_sites_from_db_folder()
             if sites:
                 site=st.selectbox("地区",sites,key="viz_site")
